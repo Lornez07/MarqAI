@@ -83,23 +83,11 @@ function App() {
       </div>
 
 
-      <div style={{ 
-        height: '100vh', 
-        display: 'grid',
-        gridTemplateRows: 'auto 1fr',
-        padding: '1rem', 
-        zIndex: 10, 
-        maxWidth: '1600px', 
-        margin: '0 auto', 
-        width: '100%',
-        boxSizing: 'border-box',
-        gap: '1rem',
-        overflow: 'hidden'
-      }}>
+      <div className="app-container">
         
         {/* Header - Stays at top */}
-        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
-          <div style={{ display: 'flex', gap: '2rem' }}>
+        <header className="app-header">
+          <div className="header-left">
             <div className="hud-panel" style={{ padding: '0.75rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
               <MarqAvatar />
               <div>
@@ -125,7 +113,7 @@ function App() {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <div className="header-buttons">
             <button className="neon-btn" style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem' }} onClick={clearChat}>Clear_History</button>
             <button 
               className={`neon-btn self-destruct-btn ${isSelfDestructing ? 'flicker' : ''}`}
@@ -138,7 +126,7 @@ function App() {
         </header>
 
         {/* Central HUD & Chat - Fills remaining space */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: '1rem', minHeight: 0 }}>
+        <div className="app-grid">
           
           {/* Fixed Chat Relay */}
           <div className="hud-panel" style={{ 
@@ -183,8 +171,8 @@ function App() {
             </div>
           </div>
 
-          {/* Right Sidebar - Also constrained */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto', paddingRight: '0.25rem' }} className="custom-scroll">
+          {/* Right Sidebar - Status & Details */}
+          <div className="sidebar-container">
             <SystemData status={systemStatus} isSearching={isSearching} />
             
             <div className="hud-panel" style={{ padding: '1rem', minHeight: '150px' }}>

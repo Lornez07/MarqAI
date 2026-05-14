@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Cpu } from 'lucide-react';
+import { User } from 'lucide-react';
 
 export const MarqAvatar: React.FC = () => {
   return (
@@ -9,14 +9,14 @@ export const MarqAvatar: React.FC = () => {
         className="avatar-pulse"
         animate={{
           boxShadow: [
-            '0 0 20px rgba(139, 92, 246, 0.4)',
-            '0 0 40px rgba(139, 92, 246, 0.6)',
-            '0 0 20px rgba(139, 92, 246, 0.4)'
+            '0 0 20px rgba(34, 211, 238, 0.4)',
+            '0 0 40px rgba(34, 211, 238, 0.6)',
+            '0 0 20px rgba(34, 211, 238, 0.4)'
           ]
         }}
         transition={{ duration: 2, repeat: Infinity }}
       >
-        <Cpu color="white" size={30} />
+        <User color="white" size={30} />
       </motion.div>
       <div style={{
         position: 'absolute',

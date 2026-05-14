@@ -3,10 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Send, AlertTriangle, Shield, Activity, Maximize2 } from 'lucide-react';
 import './index.css';
 import { useMarqAI } from './hooks/useMarqAI';
+import { useHolographicAudio } from './hooks/useHolographicAudio';
 import { MarqAvatar } from './components/MarqAvatar';
 import { ChatInterface } from './components/ChatInterface';
 import { MarqHUD } from './components/MarqHUD';
 import { SystemData } from './components/SystemData';
+import { HolographicFace } from './components/HolographicFace';
 
 function App() {
   const { 
@@ -19,8 +21,16 @@ function App() {
     isSelfDestructing, 
     systemStatus 
   } = useMarqAI();
+  const { playChirp } = useHolographicAudio();
   const [inputText, setInputText] = useState('');
   const [isInitializing, setIsInitializing] = useState(true);
+
+  useEffect(() => {
+    // Play sound when AI finishes typing
+    if (!isTyping && messages.length > 1 && messages[messages.length-1].sender === 'ai') {
+      playChirp();
+    }
+  }, [isTyping, messages, playChirp]);
 
   useEffect(() => {
     const timer = setTimeout(() => setIsInitializing(false), 2000);
@@ -30,6 +40,7 @@ function App() {
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim()) return;
+    playChirp();
     sendMessage(inputText);
     setInputText('');
   };
@@ -72,132 +83,153 @@ function App() {
       </div>
 
 
-      {/* Main UI Container */}
       <div style={{ 
-        minHeight: '100vh', 
-        display: 'flex', 
-        flexDirection: 'column', 
-        padding: '1.5rem 1rem', 
+        height: '100vh', 
+        display: 'grid',
+        gridTemplateRows: 'auto 1fr',
+        padding: '1rem', 
         zIndex: 10, 
-        maxWidth: '1400px', 
+        maxWidth: '1600px', 
         margin: '0 auto', 
         width: '100%',
-        boxSizing: 'border-box'
+        boxSizing: 'border-box',
+        gap: '1rem',
+        overflow: 'hidden'
       }}>
         
-        {/* Header */}
-        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem' }}>
+        {/* Header - Stays at top */}
+        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
           <div style={{ display: 'flex', gap: '2rem' }}>
-            <div className="hud-panel" style={{ padding: '1rem 2rem', display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+            <div className="hud-panel" style={{ padding: '0.75rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
               <MarqAvatar />
               <div>
-                <h1 className="glitch-text" style={{ fontSize: '1.75rem', fontWeight: 700, letterSpacing: '2px', color: 'var(--marq-accent)' }}>
-                  MARQAI<span style={{ opacity: 0.5 }}>-SYSTEM</span>
+                <h1 className="glitch-text" style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '2px', color: 'var(--marq-accent)' }}>
+                  MarqAI<span style={{ opacity: 0.5 }}>.Companion</span>
                 </h1>
-                <div className="hud-text" style={{ color: 'var(--marq-accent)', opacity: 0.6, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Shield size={12} /> SECURE LINK ACTIVE
+                <div className="hud-text" style={{ color: 'var(--marq-accent)', opacity: 0.6, display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.7rem' }}>
+                  <Shield size={10} /> SECURE COMPANION LINK
                 </div>
               </div>
             </div>
 
-            <div className="hud-panel" style={{ padding: '1rem', display: 'flex', gap: '1.5rem' }}>
+            <div className="hud-panel" style={{ padding: '0.75rem', display: 'flex', gap: '1rem' }}>
               <div style={{ opacity: 0.5 }}>
-                <div className="hud-text">Uptime</div>
-                <div className="hud-text" style={{ color: 'white', fontSize: '1rem' }}>04:12:12</div>
+                <div className="hud-text" style={{ fontSize: '0.7rem' }}>Uptime</div>
+                <div className="hud-text" style={{ color: 'white', fontSize: '0.9rem' }}>04:12:12</div>
               </div>
               <div style={{ width: '1px', background: 'var(--glass-border)' }} />
               <div>
-                <div className="hud-text" style={{ color: 'var(--marq-accent)' }}>Core.Ver</div>
-                <div className="hud-text">Neural.2.0.REL</div>
+                <div className="hud-text" style={{ color: 'var(--marq-accent)', fontSize: '0.7rem' }}>Version</div>
+                <div className="hud-text" style={{ fontSize: '0.9rem' }}>v3.5.Companion</div>
               </div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '1rem' }}>
-            <button className="neon-btn" onClick={clearChat}>Reset_History</button>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button className="neon-btn" style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem' }} onClick={clearChat}>Clear_History</button>
             <button 
               className={`neon-btn self-destruct-btn ${isSelfDestructing ? 'flicker' : ''}`}
+              style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem' }}
               onClick={triggerSelfDestruct}
             >
-              {isSelfDestructing ? 'TERMINATING...' : 'Neural_Override'}
+              {isSelfDestructing ? 'REBOOTING...' : 'Emergency_Reset'}
             </button>
           </div>
         </header>
 
-        {/* Central HUD & Chat */}
-        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: '2rem', minHeight: '500px' }}>
+        {/* Central HUD & Chat - Fills remaining space */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: '1rem', minHeight: 0 }}>
           
-          <div className="hud-panel" style={{ display: 'flex', flexDirection: 'column', padding: '0.5rem', background: 'rgba(15, 23, 42, 0.4)' }}>
-            <div style={{ padding: '0.5rem 1rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between' }}>
-              <div className="hud-text">Communications_Relay</div>
-              <div className="hud-text" style={{ opacity: 0.4 }}>Encrypted</div>
+          {/* Fixed Chat Relay */}
+          <div className="hud-panel" style={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            background: 'rgba(15, 23, 42, 0.4)',
+            position: 'relative',
+            overflow: 'hidden',
+          }}>
+            <HolographicFace isThinking={isSearching} />
+            <div style={{ position: 'relative', zIndex: 10, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <div style={{ padding: '0.5rem 1rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', flexShrink: 0 }}>
+                <div className="hud-text">Communications_Relay</div>
+                <div className="hud-text" style={{ opacity: 0.4 }}>Encrypted</div>
+              </div>
+              
+              {/* Message Scroll Area */}
+              <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                <ChatInterface messages={messages} isTyping={isTyping} />
+              </div>
+
+              {/* Input moved inside for fixed positioning */}
+              <footer style={{ padding: '0.75rem', borderTop: '1px solid var(--glass-border)', flexShrink: 0 }}>
+                <form onSubmit={handleSend} className="input-hud">
+                  <Maximize2 size={16} color="var(--marq-accent)" style={{ opacity: 0.5 }} />
+                  <input
+                    type="text"
+                    className="jarvis-input"
+                    placeholder="What's on your mind?..."
+                    value={inputText}
+                    onChange={(e) => setInputText(e.target.value)}
+                    disabled={isSelfDestructing}
+                    autoFocus
+                  />
+                  <Activity size={16} color="var(--marq-accent)" className="flicker" />
+                  <div style={{ width: '1px', height: '20px', background: 'var(--marq-accent)', opacity: 0.3 }} />
+                  <button type="submit" disabled={!inputText.trim() || isTyping} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem' }}>
+                    <Send color={inputText.trim() ? "var(--marq-accent)" : "rgba(255,255,255,0.1)"} size={18} />
+                  </button>
+                </form>
+              </footer>
             </div>
-            <ChatInterface messages={messages} isTyping={isTyping} />
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <SystemData status={systemStatus} />
-            <div className="hud-panel" style={{ flex: 1, padding: '1.5rem' }}>
-              <div className="hud-text" style={{ marginBottom: '1rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
-                <span>Neural_Processing_Visualizer</span>
+          {/* Right Sidebar - Also constrained */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto', paddingRight: '0.25rem' }} className="custom-scroll">
+            <SystemData status={systemStatus} isSearching={isSearching} />
+            
+            <div className="hud-panel" style={{ padding: '1rem', minHeight: '150px' }}>
+              <div className="hud-text" style={{ marginBottom: '0.75rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                <span>Neural_Visualizer</span>
                 {isSearching && (
                   <motion.span 
                     animate={{ opacity: [1, 0, 1] }} 
                     transition={{ repeat: Infinity, duration: 0.8 }}
-                    style={{ color: 'var(--marq-accent)' }}
+                    style={{ color: 'var(--marq-accent)', fontSize: '0.65rem' }}
                   >
-                    SEARCHING ARCHIVES...
+                    SYNCING...
                   </motion.span>
                 )}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px', opacity: isSearching ? 0.8 : 0.3 }}>
-                {[...Array(40)].map((_, i) => (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: '4px', opacity: isSearching ? 1 : 0.2 }}>
+                {[...Array(24)].map((_, i) => (
                   <motion.div
                     key={i}
-                    style={{ height: '40px', background: 'var(--marq-accent)' }}
-                    animate={isSearching ? { opacity: [0.2, 1, 0.2] } : { opacity: [0.1, 0.5, 0.1] }}
-                    transition={{ repeat: Infinity, duration: isSearching ? 0.4 : 1.5, delay: i * 0.05 }}
+                    style={{ height: '20px', background: 'var(--marq-accent)', borderRadius: '1px' }}
+                    animate={isSearching ? { 
+                      opacity: [0.3, 1, 0.3],
+                      scaleY: [1, 1.5, 1]
+                    } : { opacity: 0.2 }}
+                    transition={{ repeat: Infinity, duration: 0.5, delay: i * 0.03 }}
                   />
                 ))}
               </div>
             </div>
 
-            <div className="hud-panel" style={{ padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div className="hud-text" style={{ fontSize: '0.75rem', color: 'var(--marq-accent)' }}>Active_Neural_Core</div>
-              <div className="hud-text" style={{ fontSize: '0.85rem' }}>{systemStatus.model}</div>
+            <div className="hud-panel" style={{ padding: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="hud-text" style={{ fontSize: '0.65rem', color: 'var(--marq-accent)' }}>Active_Core</div>
+              <div className="hud-text" style={{ fontSize: '0.75rem' }}>{systemStatus.model}</div>
             </div>
             
-            <div className="hud-panel" style={{ padding: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
-              <div className="flicker">
-                <AlertTriangle color="var(--marq-warn)" size={24} />
+            <div className="hud-panel" style={{ padding: '1rem', display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+              <div className={isSearching ? "flicker" : ""}>
+                <Activity color="var(--marq-accent)" size={18} />
               </div>
-              <div className="hud-text" style={{ fontSize: '0.7rem' }}>
-                Manual Override Authorization: <span style={{ color: 'var(--marq-accent)' }}>Sir_Level_Admin</span>
+              <div className="hud-text" style={{ fontSize: '0.65rem' }}>
+                Signal: <span style={{ color: 'var(--marq-accent)' }}>{systemStatus.link === 'Stable' ? 'STABLE_UPLINK' : 'SYNC_INTERRUPT'}</span>
               </div>
             </div>
           </div>
         </div>
-
-        {/* Footer Input */}
-        <footer style={{ marginTop: '1.5rem', flexShrink: 0 }}>
-          <form onSubmit={handleSend} className="input-hud">
-            <Maximize2 size={18} color="var(--marq-accent)" style={{ opacity: 0.5 }} />
-            <input
-              type="text"
-              className="jarvis-input"
-              placeholder="Awaiting commands, Sir..."
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              disabled={isSelfDestructing}
-              autoFocus
-            />
-            <Activity size={18} color="var(--marq-accent)" className="flicker" />
-            <div style={{ width: '1px', height: '24px', background: 'var(--marq-accent)', opacity: 0.3 }} />
-            <button type="submit" disabled={!inputText.trim() || isTyping} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-              <Send color={inputText.trim() ? "var(--marq-accent)" : "rgba(255,255,255,0.1)"} size={20} />
-            </button>
-          </form>
-        </footer>
       </div>
 
       <AnimatePresence>
@@ -214,7 +246,7 @@ function App() {
             }}
           >
             <div className="hud-text flicker" style={{ fontSize: '4rem', color: 'var(--marq-warn)', fontWeight: 800 }}>
-              CRITICAL SYSTEM MELTDOWN
+              SYSTEM REBOOT INITIATED
             </div>
           </motion.div>
         )}

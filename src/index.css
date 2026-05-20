@@ -342,3 +342,44 @@ input.jarvis-input {
   background: rgba(34, 211, 238, 0.4);
   background-clip: content-box;
 }
+
+/* --- MOBILE RESPONSIVENESS --- */
+@media screen and (max-width: 900px) {
+  .mobile-hide {
+    display: none !important;
+  }
+  
+  .main-layout-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .header-container {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 1rem !important;
+  }
+
+  .header-left-panel {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .header-actions {
+    width: 100%;
+  }
+
+  .title-text {
+    font-size: 1.25rem !important;
+  }
+
+  .chat-bubble {
+    max-width: 100%;
+    padding: 0.75rem 1rem;
+    font-size: 0.95rem;
+  }
+  
+  .input-hud {
+    padding: 0.75rem 0.5rem;
+    gap: 0.5rem;
+  }
+}

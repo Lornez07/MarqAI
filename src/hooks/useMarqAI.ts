@@ -113,8 +113,13 @@ export function useMarqAI() {
             systemInstruction: SYSTEM_PROMPT
           });
 
+          let safeHistory = messages.slice(-10);
+          if (safeHistory.length > 0 && safeHistory[0].sender === 'ai') {
+            safeHistory = safeHistory.slice(1);
+          }
+
           const chat = model.startChat({
-            history: messages.slice(-10).map(m => ({
+            history: safeHistory.map(m => ({
               role: m.sender === 'user' ? 'user' : 'model',
               parts: [{ text: m.text }],
             })),

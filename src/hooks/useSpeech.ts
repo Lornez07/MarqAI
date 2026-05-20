@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
 // For browser compatibility
-const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
+const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
 export function useSpeech(onResult: (text: string) => void) {
   const [isListening, setIsListening] = useState(false);

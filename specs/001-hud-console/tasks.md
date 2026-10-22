@@ -48,17 +48,17 @@ Tasks are ordered by dependency. One at a time; verify before the next.
 - **Verification:** after one completed request `REQUESTS 1`, `LAST_LATENCY 16407MS`, `MODEL nemotron-3-ultra-550b-a55b`; grep for the removed strings → 0 matches; `Math.random` no longer in render
 - **Known gap:** token usage is captured from providers but not surfaced yet
 
-## Task 7: Failure states, remove fake brain `[~]`
+## Task 7: Failure states, remove fake brain `[x]`
 - **Inputs:** `useMarqAI.ts` (`getLocalResponse`, `SAFE_MODE_RESPONSES`), `ChatInterface.tsx`
 - **Done:** canned fallback deleted; message-level error bubble with code, reason, and Retry; 503 `NOT_CONFIGURED` reaches the UI as an error with retry; corrupt `sessionStorage` no longer crashes boot
-- **Remaining:** pre-flight blocking config panel when the server has no keys; retry backoff hint on 429; "no keys" copy must name the env vars in the UI
-- **Verification so far:** injected 503 → bubble text `NOT_CONFIGURED · REQUEST FAILED / No provider keys are configured on the server. / RETRY`, retry button present (`count 1`)
+- **Also done:** `GET /api/chat` reports which providers are configured (presence only); `ConfigNotice` blocks the relay and names `GEMINI_API_KEY` / `OPENROUTER_API_KEY` before the first message; composer + send disabled while unconfigured; 429 shows a rate-limit hint and a Retry countdown when the provider sends `Retry-After` (server forwards it as `retryAfterMs`)
+- **Verification:** mocked `GET` → `NO PROVIDER KEYS`, input `disabled`, placeholder `Chat disabled — no provider keys`, axe 0 violations. Mocked 429 SSE frame → hint text, button `RETRY IN 5S` disabled → `RETRY IN 3S` after 2.2s. Client test asserts `NOT_CONFIGURED` is not retryable (bug found by the test).
 
-## Task 8: Session persistence `[~]`
+## Task 8: Session persistence `[x]`
 - **Inputs:** `useMarqAI.ts` (`sessionStorage` + unguarded `JSON.parse`)
 - **Done:** corrupt/foreign JSON is discarded instead of crashing; write failures are swallowed
-- **Remaining:** `src/lib/sessions.ts` with versioned `marq:v1:sessions`, session list in sidebar, 20-session cap, migration from `marq_history`
-- **Verification so far:** guarded parse shipped; reload keeps history; session switching not implemented
+- **Also done:** `src/lib/sessions.ts` (versioned `marq:v1:sessions`, 20-session cap, title from first user message, newest-first order), `SessionList` in the sidebar/drawer with `aria-current`, New session button, migration from legacy `marq_history`; storage moved to `localStorage` so history survives a closed tab
+- **Verification:** reload restored 3 messages and the session title; New → 2 sessions, 1 bubble; switching back restored the original 3 bubbles; `localStorage` holds exactly `marq:v1:sessions`. Tests: 9 session-store cases + 3 hook boot cases.
 
 ## Task 9: Accessibility pass `[x]`
 - **Inputs:** all components, `index.css`
@@ -72,13 +72,14 @@ Tasks are ordered by dependency. One at a time; verify before the next.
 - **Verification:** Playwright 375×667: `.hud-panel` reachable via drawer, composer inside viewport (currently `bottom: 650/667`), `scrollWidth === clientWidth`, header ≤ 25% of viewport.
 - **Result:** 375×667 measured — header 114 px (17 %), composer bottom 650/667, `scrollWidth 375 === clientWidth 375`, face `min(750px, 100%, 78vh)`. `Telemetry` toggle (`aria-expanded`/`aria-controls`) opens a labelled drawer (`visibility/transform`), Escape and backdrop close it, axe 0 violations with drawer open. Root overflow cause was grid `min-width: auto`; fixed with `min-width: 0` on the grid + children.
 
-## Task 11: Asset + motion budget `[!]`
+## Task 11: Asset + motion budget `[x]`
 - **Inputs:** `src/assets/hologram_face_processed.png` (823 KB), `App.css`, `react.svg`, `vite.svg`, `hero.png`, `public/icons.svg`, `index.css`
-- **Outputs:** WebP/AVIF focal face ≤ 150 KB at identical dimensions, `@import` → `<link rel="preconnect">`, delete 5 unreferenced files, pause loops on `visibilitychange`
-- **Verification:** build asset report: largest image ≤ 150 KB; Lighthouse mobile ≥ 85.
-- **Blocker:** no image encoder on this machine (`magick`, `ffmpeg`, `cwebp` all absent). Needs approval to add `sharp` as a **dev** dependency, or you convert externally. I will not add it unasked.
+- **Outputs:** WebP focal face ≤ 150 KB at identical dimensions, no third-party render-blocking CSS, dead files removed, loops paused when hidden
+- **Result:** `hologram_face_processed.png` (823.4 KB) → `/hologram_face.webp` **144.5 KB at 1024×1024** (sharp q62, dev dependency only). Moved to `public/` and preloaded from `index.html` (`rel=preload`, `fetchpriority=high`) so the LCP image is not discovered late. Google Fonts `@import`/stylesheet replaced with self-hosted variable WOFF2 (Space Grotesk 22.3 KB + JetBrains Mono 31.4 KB, `font-display: swap`); `document.fonts.check()` confirms both load. Deleted `App.css`, `hero.png`, `hologram_face.png`, `react.svg`, `vite.svg`, `public/icons.svg` (0 references); roboto/`Inter` never used. `html[data-page-hidden='true']` pauses scanline, data-stream, flicker, avatar and neural loops; boot shortened 700 → 300 ms (anchor limit 1.2 s).
+- **Verification:** `npm run verify` green; Lighthouse 12 (mobile, `vite preview`): **performance 89**, accessibility 100, best-practices 100, SEO 100, LCP 3.5 s, FCP 2.1 s, TBT 30 ms, CLS 0.004, 0 console errors. Before the image/font work the same setup scored 83–87 with a 404 console error.
 
-## Task 12: CI + tests
+## Task 12: CI + tests `[x]`
 - **Inputs:** `package.json`, `.github/workflows/`
-- **Outputs:** Vitest + Testing Library config and the four test files from Task 5/8; workflow: install → typecheck → lint → build → secret grep → test
-- **Verification:** workflow run green on a pushed branch; deliberately reintroduce a `VITE_` key in `src/lib` → CI fails on the grep gate.
+- **Outputs:** Vitest + Testing Library config and the four test files from Task 5/8; workflow: install → typecheck → lint → test → build → secret grep
+- **Result:** `vitest.config.ts` (jsdom, `src/**` + `api/**`), `src/lib/llm/client.test.ts` (SSE split frames, error frame + cooldown, HTTP→`ChatError` mapping, abort), `api/chat.test.ts` (Gemini 503 → OpenRouter stream failover, 503 `NOT_CONFIGURED`, invalid body, all-providers-fail 429 + `Retry-After`, GET config), `src/lib/sessions.test.ts` (boot, restore, corrupt JSON, unknown version, legacy migration, 20-cap, titles), `src/hooks/useMarqAI.test.tsx` (storage boot, fresh state, unconfigured probe). **23 tests / 4 files pass.** `npm run verify` = typecheck → lint → test → build → secrets. Workflow `.github/workflows/ci.yml` runs the same chain.
+- **Verification:** `npm run verify` exit 0. Reintroducing `VITE_GEMINI_API_KEY` in `src/lib` → `Secret check failed: src\lib\__secret_probe.ts: VITE_-prefixed secret`, exit 1; removing it → exit 0. Workflow run itself is **not yet green on GitHub** — nothing is pushed; pushing needs your go-ahead.

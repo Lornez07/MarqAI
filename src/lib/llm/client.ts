@@ -1,4 +1,4 @@
-import { ChatError, type ChatMessage, type ChatMeta, type ChatUsage } from './types';
+import { ChatError, type ChatMessage, type ChatMeta, type ChatUsage, type ProviderConfig } from './types';
 
 export interface StreamHandlers {
   onMeta?: (meta: ChatMeta) => void;
@@ -30,7 +30,7 @@ export async function streamChat(
 
   if (!response.ok) {
     const payload = await readErrorPayload(response);
-    throw new ChatError(payload.message, payload.code, payload.retryable);
+    throw new ChatError(payload.message, payload.code, payload.retryable, payload.retryAfterMs);
   }
 
   if (!response.body) {
@@ -66,11 +66,12 @@ export async function streamChat(
           usage = { ...usage, ...(dispatch.data as ChatUsage) };
           onDone?.(usage);
         } else if (dispatch.event === 'error') {
-          const failure = dispatch.data as { message?: string; code?: string; retryable?: boolean };
+          const failure = dispatch.data as { message?: string; code?: string; retryable?: boolean; retryAfterMs?: number };
           throw new ChatError(
             failure.message ?? 'The request failed.',
             failure.code ?? 'UPSTREAM_ERROR',
             failure.retryable ?? true,
+            failure.retryAfterMs,
           );
         }
       }
@@ -80,6 +81,23 @@ export async function streamChat(
   }
 
   return usage;
+}
+
+/**
+ * Pre-flight provider check. Returns `null` when the server cannot answer
+ * (offline, static preview) so the UI can stay optimistic instead of blocking
+ * on a failed probe.
+ */
+export async function fetchProviderConfig(signal?: AbortSignal): Promise<ProviderConfig | null> {
+  try {
+    const response = await fetch('/api/chat', { method: 'GET', signal, headers: { Accept: 'application/json' } });
+    if (!response.ok) return null;
+    const body = (await response.json()) as Partial<ProviderConfig>;
+    if (typeof body.configured !== 'boolean' || !body.providers) return null;
+    return { configured: body.configured, providers: body.providers };
+  } catch {
+    return null;
+  }
 }
 
 function parseFrame(frame: string): { event: string; data: unknown } | null {
@@ -101,19 +119,36 @@ function parseFrame(frame: string): { event: string; data: unknown } | null {
   }
 }
 
-async function readErrorPayload(response: Response): Promise<{ message: string; code: string; retryable: boolean }> {
+async function readErrorPayload(
+  response: Response,
+): Promise<{ message: string; code: string; retryable: boolean; retryAfterMs?: number }> {
+  const retryAfterMs = parseRetryAfterHeader(response.headers.get('retry-after'));
   try {
-    const body = (await response.json()) as { error?: string; code?: string };
+    const body = (await response.json()) as { error?: string; code?: string; retryAfterMs?: number };
+    const code = body.code ?? `HTTP_${response.status}`;
     return {
       message: body.error ?? `Request failed (${response.status}).`,
-      code: body.code ?? `HTTP_${response.status}`,
-      retryable: response.status >= 500 || response.status === 429,
+      code,
+      // A missing key is not going to fix itself on retry.
+      retryable: response.status === 429 || (response.status >= 500 && code !== 'NOT_CONFIGURED'),
+      retryAfterMs: body.retryAfterMs ?? retryAfterMs,
     };
   } catch {
     return {
       message: `Request failed (${response.status}).`,
       code: `HTTP_${response.status}`,
       retryable: response.status >= 500,
+      retryAfterMs,
     };
   }
+}
+
+function parseRetryAfterHeader(value: string | null): number | undefined {
+  if (!value) return undefined;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds > 0) return Math.round(seconds * 1000);
+  const date = Date.parse(value);
+  if (Number.isNaN(date)) return undefined;
+  const delta = date - Date.now();
+  return delta > 0 ? delta : undefined;
 }

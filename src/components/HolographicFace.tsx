@@ -1,6 +1,8 @@
 import React, { useEffect } from 'react';
 import { motion, useSpring, useTransform } from 'framer-motion';
-import hologramImg from '../assets/hologram_face_processed.png';
+
+/** Served from /public so index.html can preload it by a stable URL. */
+const hologramImg = '/hologram_face.webp';
 
 interface Props {
   isThinking?: boolean;
@@ -76,8 +78,7 @@ export const HolographicFace: React.FC<Props> = ({ isThinking = false }) => {
             opacity: 0.4,
           }}
         >
-          <img 
-            src={hologramImg} 
+          <img fetchPriority="high" decoding="async" src={hologramImg} 
             style={{
               width: '100%',
               height: '100%',
@@ -107,8 +108,7 @@ export const HolographicFace: React.FC<Props> = ({ isThinking = false }) => {
           } : { scale: 1, filter: "brightness(1.1)" }}
           transition={{ duration: isThinking ? 1.5 : 3, repeat: Infinity, ease: "easeInOut" }}
         >
-          <img 
-            src={hologramImg} 
+          <img fetchPriority="high" decoding="async" src={hologramImg} 
             style={{
               width: '100%',
               height: '100%',

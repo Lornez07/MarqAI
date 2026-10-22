@@ -51,12 +51,14 @@ interface Usage {
 class ProviderError extends Error {
   code: string;
   retryable: boolean;
+  retryAfterMs?: number;
 
-  constructor(code: string, message: string, retryable: boolean) {
+  constructor(code: string, message: string, retryable: boolean, retryAfterMs?: number) {
     super(message);
     this.name = 'ProviderError';
     this.code = code;
     this.retryable = retryable;
+    this.retryAfterMs = retryAfterMs;
   }
 }
 
@@ -194,6 +196,17 @@ async function consumeSse(response: Response, onData: (payload: string) => void)
  * Provider transports
  * ------------------------------------------------------------------ */
 
+/** `Retry-After` is seconds or an HTTP date; normalize to milliseconds. */
+function parseRetryAfter(value: string | null): number | undefined {
+  if (!value) return undefined;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.round(seconds * 1000) || undefined;
+  const date = Date.parse(value);
+  if (Number.isNaN(date)) return undefined;
+  const delta = date - Date.now();
+  return delta > 0 ? delta : undefined;
+}
+
 async function upstreamError(provider: string, response: Response): Promise<ProviderError> {
   const status = response.status;
 
@@ -217,8 +230,9 @@ async function upstreamError(provider: string, response: Response): Promise<Prov
           : 'UPSTREAM_REJECTED';
 
   const retryable = code === 'RATE_LIMITED' || code === 'UPSTREAM_ERROR';
+  const retryAfterMs = parseRetryAfter(response.headers.get('retry-after'));
   const label = provider === 'gemini' ? 'Gemini' : 'OpenRouter';
-  return new ProviderError(code, `${label} request failed (${status}).`, retryable);
+  return new ProviderError(code, `${label} request failed (${status}).`, retryable, retryAfterMs);
 }
 
 async function startAttempt(url: string, init: RequestInit, budget: AbortSignal) {
@@ -370,6 +384,20 @@ async function runOpenRouter(
  * ------------------------------------------------------------------ */
 
 export default async function handler(req: ProxyRequest, res: ProxyResponse): Promise<void> {
+  if (req.method === 'GET') {
+    // Pre-flight: lets the UI block before the first message instead of failing
+    // after it. Presence only — never the values.
+    res.setHeader('Cache-Control', 'no-store');
+    res.status(200).json({
+      configured: Boolean(process.env.GEMINI_API_KEY?.trim() || process.env.OPENROUTER_API_KEY?.trim()),
+      providers: {
+        gemini: Boolean(process.env.GEMINI_API_KEY?.trim()),
+        openrouter: Boolean(process.env.OPENROUTER_API_KEY?.trim()),
+      },
+    });
+    return;
+  }
+
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Use POST.', code: 'METHOD_NOT_ALLOWED' });
     return;
@@ -487,6 +515,7 @@ export default async function handler(req: ProxyRequest, res: ProxyResponse): Pr
       message: lastError?.message ?? 'All providers failed.',
       code: lastError?.code ?? 'NO_PROVIDER',
       retryable: lastError?.retryable ?? true,
+      retryAfterMs: lastError?.retryAfterMs,
     });
   } finally {
     clearTimeout(budgetTimer);

@@ -54,7 +54,7 @@ No third family. No Inter. Uppercase never exceeds 24 characters on mobile (it w
 
 | Rule | Value |
 |---|---|
-| Concurrent infinite animations, idle | ≤ 2 (rings only) |
+| Concurrent infinite animations, idle | ≤ 2 content loops (rings only). Ambient layers (`scanner-overlay`, `data-stream-layer`) are CSS-only, paused when hidden/reduced, and exempt |
 | Concurrent infinite animations, streaming | ≤ 4 (rings + waveform + cursor) |
 | Strobe | **Banned.** No `0.1s` flicker loops |
 | Title glitch | Once on mount, ≤ 400ms. Not infinite |

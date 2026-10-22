@@ -10,6 +10,8 @@ import { ChatInterface } from './components/ChatInterface';
 import { MarqHUD } from './components/MarqHUD';
 import { SystemData } from './components/SystemData';
 import { HolographicFace } from './components/HolographicFace';
+import { SessionList } from './components/SessionList';
+import { ConfigNotice } from './components/ConfigNotice';
 
 /** Model ids are long and vendor-prefixed; show the part a human reads, keep the rest in `title`. */
 function shortModel(model: string): string {
@@ -27,13 +29,20 @@ function App() {
     triggerSelfDestruct, 
     isSelfDestructing, 
     systemStatus,
-    stopGeneration
+    stopGeneration,
+    sessions,
+    activeId,
+    newSession,
+    selectSession,
+    providerState,
+    recheckConfig,
   } = useMarqAI();
   const { playChirp } = useHolographicAudio();
   const [inputText, setInputText] = useState('');
   const [isInitializing, setIsInitializing] = useState(true);
   const [voiceMode, setVoiceMode] = useState(false);
   const [telemetryOpen, setTelemetryOpen] = useState(false);
+  const [isRechecking, setIsRechecking] = useState(false);
   const lastSpokenMessageIdRef = useRef<string | null>(null);
   const wasVoiceCommandRef = useRef(false);
 
@@ -41,8 +50,16 @@ function App() {
     setInputText(text);
   });
 
-  const toggleVoiceMode = () => {
-    setVoiceMode(prev => {
+  const handleRecheck = async () => {
+    setIsRechecking(true);
+    try {
+      await recheckConfig();
+    } finally {
+      setIsRechecking(false);
+    }
+  };
+
+  const toggleVoiceMode = () => {    setVoiceMode(prev => {
       const next = !prev;
       if (next) {
         startListening();
@@ -77,8 +94,18 @@ function App() {
   }, [isTyping, messages, playChirp, speak]);
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsInitializing(false), 700);
+    const timer = setTimeout(() => setIsInitializing(false), 300);
     return () => clearTimeout(timer);
+  }, []);
+
+  // Pause CSS-driven decoration in background tabs.
+  useEffect(() => {
+    const sync = () => {
+      document.documentElement.dataset.pageHidden = document.hidden ? 'true' : 'false';
+    };
+    document.addEventListener('visibilitychange', sync);
+    sync();
+    return () => document.removeEventListener('visibilitychange', sync);
   }, []);
 
   // Drawer dismissal: Escape must work without hunting for the close button.
@@ -236,7 +263,11 @@ function App() {
               
               {/* Message Scroll Area */}
               <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                <ChatInterface messages={messages} isTyping={isTyping} onRetry={sendMessage} />
+                {providerState === 'unconfigured' ? (
+                  <ConfigNotice onRecheck={() => void handleRecheck()} isChecking={isRechecking} />
+                ) : (
+                  <ChatInterface messages={messages} isTyping={isTyping} onRetry={sendMessage} />
+                )}
               </div>
 
               {/* Input moved inside for fixed positioning */}
@@ -249,10 +280,16 @@ function App() {
                     className="jarvis-input"
                     aria-label="Message"
                     autoComplete="off"
-                    placeholder={isListening ? "Listening..." : "What's on your mind?..."}
+                    placeholder={
+                      providerState === 'unconfigured'
+                        ? 'Chat disabled — no provider keys'
+                        : isListening
+                          ? 'Listening...'
+                          : "What's on your mind?..."
+                    }
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
-                    disabled={isSelfDestructing || isSpeaking}
+                    disabled={isSelfDestructing || isSpeaking || providerState !== 'ready'}
                     autoFocus
                   />
                   <Activity size={16} color="var(--marq-accent)" className={isListening ? "flicker" : ""} aria-hidden="true" style={{ opacity: isListening ? 1 : 0.3 }} />
@@ -265,7 +302,7 @@ function App() {
                       <Square color="var(--marq-warn)" size={16} />
                     </button>
                   ) : (
-                    <button type="submit" disabled={!inputText.trim()} aria-label="Send message" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem' }}>
+                    <button type="submit" disabled={!inputText.trim() || providerState !== 'ready'} aria-label="Send message" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem' }}>
                       <Send color={inputText.trim() ? "var(--marq-accent)" : "rgba(255,255,255,0.25)"} size={18} />
                     </button>
                   )}
@@ -291,6 +328,7 @@ function App() {
                 Close
               </button>
             </div>
+            <SessionList sessions={sessions} activeId={activeId} onSelect={selectSession} onNew={newSession} />
             <SystemData status={systemStatus} isSearching={isSearching} />
             
             <div className="hud-panel" style={{ padding: '1rem', minHeight: '150px' }}>

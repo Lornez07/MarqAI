@@ -1,4 +1,19 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
+/* Self-hosted variable fonts: removes the render-blocking third-party stylesheet. */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('./assets/fonts/space-grotesk-var.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('./assets/fonts/jetbrains-mono-var.woff2') format('woff2');
+}
 
 :root {
   --marq-bg: #030712;
@@ -437,6 +452,135 @@ input.jarvis-input:focus-visible {
 
 input.jarvis-input {
   min-width: 0;
+}
+
+/* Pause decorative loops when the tab is hidden; rAF stops on its own, CSS
+   compositor animations do not. */
+html[data-page-hidden='true'] .scanner-overlay,
+html[data-page-hidden='true'] .data-stream-layer,
+html[data-page-hidden='true'] .flicker,
+html[data-page-hidden='true'] .avatar-pulse,
+html[data-page-hidden='true'] .neural-pulse {
+  animation-play-state: paused;
+}
+
+/* --- SESSIONS --- */
+.sessions-panel {
+  padding: 0.75rem;
+}
+
+.sessions-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.sessions-new {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.65rem;
+}
+
+.sessions-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.session-item {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.35rem 0.4rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-left: 2px solid transparent;
+  color: var(--marq-text-soft);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.session-item:hover {
+  background: rgba(34, 211, 238, 0.06);
+  color: var(--marq-text);
+}
+
+.session-item.is-active {
+  border-left-color: var(--marq-accent);
+  background: rgba(34, 211, 238, 0.08);
+  color: var(--marq-text);
+}
+
+.session-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-time {
+  flex-shrink: 0;
+  color: var(--marq-text-soft);
+  font-size: 0.6rem;
+}
+
+/* --- BLOCKING CONFIG STATE --- */
+.config-notice {
+  margin: 1rem;
+  padding: 1rem;
+  overflow-y: auto;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(2, 6, 23, 0.94);
+  color: var(--marq-text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.config-notice-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  color: var(--marq-warn);
+}
+
+.config-notice code {
+  padding: 0 0.2rem;
+  color: var(--marq-accent);
+  background: rgba(34, 211, 238, 0.08);
+}
+
+.config-notice ol {
+  margin: 0.5rem 0;
+  padding-left: 1.1rem;
+}
+
+.config-notice li {
+  margin-bottom: 0.4rem;
+}
+
+.config-notice-foot {
+  color: var(--marq-text-soft);
+  font-size: 0.7rem;
+}
+
+.config-notice .neon-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
 }
 
 /* --- MOBILE RESPONSIVENESS --- */

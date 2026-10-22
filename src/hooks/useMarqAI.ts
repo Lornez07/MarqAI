@@ -1,14 +1,21 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { streamChat } from '../lib/llm/client';
+import { streamChat, fetchProviderConfig } from '../lib/llm/client';
 import { ChatError, type ChatMessage, type Provider } from '../lib/llm/types';
+import {
+  createSession,
+  loadSessionState,
+  saveSessionState,
+  sessionSignature,
+  titleFromMessages,
+  upsertSession,
+  SESSION_CAP,
+  type Session,
+  type SessionMessage,
+  type SessionState,
+} from '../lib/sessions';
 
-export interface Message {
-  id: string;
-  text: string;
-  sender: 'user' | 'ai';
-  timestamp: number;
-  status?: 'streaming' | 'done' | 'cancelled' | 'error';
-  error?: { message: string; code: string; retryable: boolean };
+export interface Message extends SessionMessage {
+  error?: { message: string; code: string; retryable: boolean; retryAfterMs?: number };
   meta?: { model?: string; provider?: Provider; latencyMs?: number; firstTokenMs?: number };
 }
 
@@ -19,39 +26,37 @@ export interface SystemStatus {
   lastLatencyMs: number | null;
 }
 
-const STORAGE_KEY = 'marq_history';
+export type ProviderState = 'checking' | 'ready' | 'unconfigured';
 
-const GREETING: Message = {
-  id: 'greeting',
-  sender: 'ai',
-  text: 'MarqAI online. Ask about architecture, logic, or whatever is blocking you.',
-  timestamp: Date.now(),
-  status: 'done',
-};
+const GREETING_TEXT = 'MarqAI online. Ask about architecture, logic, or whatever is blocking you.';
 
-function loadHistory(): Message[] {
-  try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
-    if (!raw) return [GREETING];
+function makeGreeting(): Message {
+  return {
+    id: 'greeting',
+    sender: 'ai',
+    text: GREETING_TEXT,
+    timestamp: Date.now(),
+    status: 'done',
+  };
+}
 
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed) || parsed.length === 0) return [GREETING];
+function toMessage(message: SessionMessage): Message {
+  return { ...message };
+}
 
-    const valid = parsed.filter(
-      (entry): entry is Message =>
-        !!entry &&
-        typeof entry === 'object' &&
-        typeof (entry as Message).id === 'string' &&
-        typeof (entry as Message).text === 'string' &&
-        ((entry as Message).sender === 'user' || (entry as Message).sender === 'ai'),
-    );
+function withGreeting(messages: SessionMessage[]): Message[] {
+  return messages.length > 0 ? messages.map(toMessage) : [makeGreeting()];
+}
 
-    return valid.length > 0 ? valid : [GREETING];
-  } catch {
-    // Corrupt state must never block boot.
-    sessionStorage.removeItem(STORAGE_KEY);
-    return [GREETING];
-  }
+/** Strip transient fields; a half-streamed reply survives as `cancelled`. */
+function toStored(message: Message): SessionMessage {
+  return {
+    id: message.id,
+    text: message.text,
+    sender: message.sender,
+    timestamp: message.timestamp,
+    status: message.status === 'streaming' ? 'cancelled' : message.status,
+  };
 }
 
 function newId(): string {
@@ -60,11 +65,27 @@ function newId(): string {
     : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function bootState(): SessionState {
+  const state = loadSessionState();
+  const active = state.sessions.find((session) => session.id === state.activeId) ?? state.sessions[0];
+  return { sessions: state.sessions, activeId: active.id };
+}
+
 export function useMarqAI() {
-  const [messages, setMessages] = useState<Message[]>(loadHistory);
+  const bootRef = useRef<SessionState | null>(null);
+  if (!bootRef.current) bootRef.current = bootState();
+  const boot = bootRef.current;
+
+  const [sessions, setSessions] = useState<Session[]>(boot.sessions);
+  const [activeId, setActiveId] = useState<string>(boot.activeId);
+  const [messages, setMessages] = useState<Message[]>(() =>
+    withGreeting(boot.sessions.find((session) => session.id === boot.activeId)?.messages ?? []),
+  );
+
   const [isTyping, setIsTyping] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [isSelfDestructing, setIsSelfDestructing] = useState(false);
+  const [providerState, setProviderState] = useState<ProviderState>('checking');
   const [systemStatus, setSystemStatus] = useState<SystemStatus>({
     model: 'Not connected',
     link: 'Stable',
@@ -73,16 +94,48 @@ export function useMarqAI() {
   });
 
   const messagesRef = useRef<Message[]>(messages);
+  const sessionsRef = useRef<Session[]>(boot.sessions);
+  const signatureRef = useRef(sessionSignature(boot.sessions));
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     messagesRef.current = messages;
-    try {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
-    } catch {
-      // Storage full or unavailable: the session still works in memory.
-    }
   }, [messages]);
+
+  // Write-through persistence: every change lands in one versioned key, but the
+  // session list only re-renders when ids, titles, or order change.
+  useEffect(() => {
+    const stored = messages.filter((message) => message.status !== 'error').map(toStored);
+    const existing = sessionsRef.current.find((session) => session.id === activeId);
+    const next = upsertSession(sessionsRef.current, {
+      id: activeId,
+      title: titleFromMessages(stored),
+      createdAt: existing?.createdAt ?? Date.now(),
+      updatedAt: Date.now(),
+      messages: stored,
+    });
+
+    sessionsRef.current = next;
+    saveSessionState({ sessions: next, activeId });
+
+    const signature = sessionSignature(next);
+    if (signature !== signatureRef.current) {
+      signatureRef.current = signature;
+      setSessions(next);
+    }
+  }, [messages, activeId]);
+
+  const checkConfig = useCallback(async (signal?: AbortSignal) => {
+    const config = await fetchProviderConfig(signal);
+    if (signal?.aborted) return;
+    setProviderState(config ? (config.configured ? 'ready' : 'unconfigured') : 'ready');
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void checkConfig(controller.signal);
+    return () => controller.abort();
+  }, [checkConfig]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -93,7 +146,7 @@ export function useMarqAI() {
   const sendMessage = useCallback(
     async (text: string) => {
       const content = text.trim();
-      if (!content || abortRef.current) return;
+      if (!content || abortRef.current || providerState === 'unconfigured') return;
 
       const userMsg: Message = {
         id: newId(),
@@ -170,17 +223,7 @@ export function useMarqAI() {
       } catch (error) {
         if (controller.signal.aborted) {
           setMessages((prev) =>
-            prev.map((m) =>
-              m.id === replyId
-                ? {
-                    ...m,
-                    status: 'cancelled',
-                    error: undefined,
-                    text: m.text,
-                    meta: { ...m.meta },
-                  }
-                : m,
-            ),
+            prev.map((m) => (m.id === replyId ? { ...m, status: 'cancelled', error: undefined } : m)),
           );
         } else {
           const failure =
@@ -195,7 +238,12 @@ export function useMarqAI() {
                     ...m,
                     status: 'error',
                     text: '',
-                    error: { message: failure.message, code: failure.code, retryable: failure.retryable },
+                    error: {
+                      message: failure.message,
+                      code: failure.code,
+                      retryable: failure.retryable,
+                      retryAfterMs: failure.retryAfterMs,
+                    },
                   }
                 : m,
             ),
@@ -208,15 +256,41 @@ export function useMarqAI() {
         setIsSearching(false);
       }
     },
-    [],
+    [providerState],
   );
 
   const clearChat = useCallback(() => {
     abortRef.current?.abort();
-    setMessages([{ ...GREETING, timestamp: Date.now() }]);
+    setMessages([makeGreeting()]);
     setSystemStatus((prev) => ({ ...prev, link: 'Stable', requests: 0, lastLatencyMs: null }));
-    sessionStorage.removeItem(STORAGE_KEY);
   }, []);
+
+  const newSession = useCallback(() => {
+    abortRef.current?.abort();
+    const session = createSession([makeGreeting()]);
+    const next = [session, ...sessionsRef.current].slice(0, SESSION_CAP);
+
+    sessionsRef.current = next;
+    signatureRef.current = sessionSignature(next);
+    saveSessionState({ sessions: next, activeId: session.id });
+
+    setSessions(next);
+    setActiveId(session.id);
+    setMessages(session.messages.map(toMessage));
+  }, []);
+
+  const selectSession = useCallback(
+    (id: string) => {
+      if (id === activeId) return;
+      const target = sessionsRef.current.find((session) => session.id === id);
+      if (!target) return;
+
+      abortRef.current?.abort();
+      setActiveId(id);
+      setMessages(withGreeting(target.messages));
+    },
+    [activeId],
+  );
 
   const triggerSelfDestruct = useCallback(() => {
     abortRef.current?.abort();
@@ -235,5 +309,11 @@ export function useMarqAI() {
     isSelfDestructing,
     systemStatus,
     stopGeneration,
+    sessions,
+    activeId,
+    newSession,
+    selectSession,
+    providerState,
+    recheckConfig: checkConfig,
   };
 }

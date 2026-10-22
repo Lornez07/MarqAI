@@ -51,6 +51,40 @@ const CodeBlock = ({ children, className }: CodeBlockProps) => {
   );
 };
 
+interface RetryButtonProps {
+  retryAfterMs?: number;
+  prompt: string;
+  onRetry: (text: string) => void;
+}
+
+/** Counts down only when the provider actually told us how long to wait. */
+const RetryButton: React.FC<RetryButtonProps> = ({ retryAfterMs, prompt, onRetry }) => {
+  const [deadline] = useState(() => (retryAfterMs && retryAfterMs > 0 ? Date.now() + retryAfterMs : 0));
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!deadline) return;
+    const timer = setInterval(() => {
+      setNow(Date.now());
+      if (Date.now() >= deadline) clearInterval(timer);
+    }, 250);
+    return () => clearInterval(timer);
+  }, [deadline]);
+
+  const remaining = deadline ? Math.max(0, Math.ceil((deadline - now) / 1000)) : 0;
+
+  return (
+    <button
+      className="neon-btn"
+      onClick={() => onRetry(prompt)}
+      aria-label="Retry the failed message"
+      disabled={remaining > 0}
+    >
+      {remaining > 0 ? `Retry in ${remaining}s` : 'Retry'}
+    </button>
+  );
+};
+
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({ messages, isTyping, onRetry }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -106,10 +140,13 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ messages, isTyping
                   <div style={{ color: 'var(--marq-text)', marginBottom: isTyping ? 0 : '0.6rem' }}>
                     {msg.error?.message ?? 'The request failed.'}
                   </div>
+                  {msg.error?.code === 'RATE_LIMITED' && (
+                    <div className="hud-text" style={{ color: 'var(--marq-text-soft)', fontSize: '0.7rem', marginBottom: '0.6rem' }}>
+                      Provider rate limit hit. Free tiers recover on their own; wait before retrying.
+                    </div>
+                  )}
                   {msg.error?.retryable && prompt && onRetry && (
-                    <button className="neon-btn" onClick={() => onRetry(prompt)} aria-label="Retry the failed message">
-                      Retry
-                    </button>
+                    <RetryButton retryAfterMs={msg.error.retryAfterMs} prompt={prompt} onRetry={onRetry} />
                   )}
                 </div>
               ) : msg.sender === 'ai' ? (

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Shield, Activity, Maximize2, Mic, MicOff } from 'lucide-react';
+import { Send, Shield, Activity, Maximize2, Mic, MicOff, Square } from 'lucide-react';
 import './index.css';
 import { useMarqAI } from './hooks/useMarqAI';
 import { useHolographicAudio } from './hooks/useHolographicAudio';
@@ -11,6 +11,12 @@ import { MarqHUD } from './components/MarqHUD';
 import { SystemData } from './components/SystemData';
 import { HolographicFace } from './components/HolographicFace';
 
+/** Model ids are long and vendor-prefixed; show the part a human reads, keep the rest in `title`. */
+function shortModel(model: string): string {
+  if (!model || model === 'Not connected') return model;
+  return model.replace(/^[^/]+\//, '').replace(/:free$/, '');
+}
+
 function App() {
   const { 
     messages,
@@ -20,7 +26,8 @@ function App() {
     clearChat, 
     triggerSelfDestruct, 
     isSelfDestructing, 
-    systemStatus 
+    systemStatus,
+    stopGeneration
   } = useMarqAI();
   const { playChirp } = useHolographicAudio();
   const [inputText, setInputText] = useState('');
@@ -69,7 +76,7 @@ function App() {
   }, [isTyping, messages, playChirp, speak]);
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsInitializing(false), 2000);
+    const timer = setTimeout(() => setIsInitializing(false), 700);
     return () => clearTimeout(timer);
   }, []);
 
@@ -147,27 +154,27 @@ function App() {
         {/* Header - Stays at top */}
         <header className="header-container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
           <div style={{ display: 'flex', gap: '2rem' }}>
-            <div className="hud-panel header-left-panel" style={{ padding: '0.75rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div className="hud-panel header-left-panel raphael-theme" style={{ padding: '0.75rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
               <MarqAvatar />
               <div>
                 <h1 className="glitch-text title-text" style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '2px', color: 'var(--marq-accent)' }}>
-                  MarqAI<span style={{ opacity: 0.5 }}>.Companion</span>
+                  MarqAI<span style={{ opacity: 0.5 }}>.Console</span>
                 </h1>
-                <div className="hud-text" style={{ color: 'var(--marq-accent)', opacity: 0.6, display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.7rem' }}>
-                  <Shield size={10} /> SECURE COMPANION LINK
+                <div className="hud-text" style={{ color: 'var(--marq-accent)', opacity: 0.75, display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.7rem' }}>
+                  <Shield size={10} aria-hidden="true" /> KEYS HELD SERVER-SIDE
                 </div>
               </div>
             </div>
 
             <div className="hud-panel mobile-hide" style={{ padding: '0.75rem', display: 'flex', gap: '1rem' }}>
-              <div style={{ opacity: 0.5 }}>
-                <div className="hud-text" style={{ fontSize: '0.7rem' }}>Uptime</div>
-                <div className="hud-text" style={{ color: 'white', fontSize: '0.9rem' }}>04:12:12</div>
+              <div>
+                <div className="hud-text" style={{ color: 'var(--marq-accent)', fontSize: '0.7rem' }}>REQUESTS</div>
+                <div className="hud-text" style={{ color: 'white', fontSize: '0.9rem' }}>{systemStatus.requests}</div>
               </div>
               <div style={{ width: '1px', background: 'var(--glass-border)' }} />
               <div>
-                <div className="hud-text" style={{ color: 'var(--marq-accent)', fontSize: '0.7rem' }}>Version</div>
-                <div className="hud-text" style={{ fontSize: '0.9rem' }}>v3.5.Companion</div>
+                <div className="hud-text" style={{ color: 'var(--marq-accent)', fontSize: '0.7rem' }}>MODEL</div>
+                <div className="hud-text model-value" title={systemStatus.model} style={{ fontSize: '0.9rem' }}>{shortModel(systemStatus.model)}</div>
               </div>
             </div>
           </div>
@@ -179,7 +186,7 @@ function App() {
               style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', flex: 1 }}
               onClick={triggerSelfDestruct}
             >
-              {isSelfDestructing ? 'REBOOTING...' : 'Emergency_Reset'}
+              {isSelfDestructing ? 'RESETTING...' : 'Reset_Session'}
             </button>
           </div>
         </header>
@@ -199,12 +206,12 @@ function App() {
             <div style={{ position: 'relative', zIndex: 10, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               <div style={{ padding: '0.5rem 1rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', flexShrink: 0 }}>
                 <div className="hud-text">Communications_Relay</div>
-                <div className="hud-text" style={{ opacity: 0.4 }}>Encrypted</div>
+                <div className="hud-text" style={{ opacity: 0.75 }}>SERVER_PROXY</div>
               </div>
               
               {/* Message Scroll Area */}
               <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                <ChatInterface messages={messages} isTyping={isTyping} />
+                <ChatInterface messages={messages} isTyping={isTyping} onRetry={sendMessage} />
               </div>
 
               {/* Input moved inside for fixed positioning */}
@@ -222,12 +229,18 @@ function App() {
                   />
                   <Activity size={16} color="var(--marq-accent)" className={isListening ? "flicker" : ""} style={{ opacity: isListening ? 1 : 0.3 }} />
                   <div style={{ width: '1px', height: '20px', background: 'var(--marq-accent)', opacity: 0.3 }} />
-                  <button type="button" onClick={toggleVoiceMode} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem' }}>
-                    {voiceMode ? <Mic color="var(--marq-accent)" size={18} className="flicker" /> : <MicOff color="rgba(255,255,255,0.3)" size={18} />}
+                  <button type="button" onClick={toggleVoiceMode} aria-label={voiceMode ? 'Stop voice input' : 'Start voice input'} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem' }}>
+                    {voiceMode ? <Mic color="var(--marq-accent)" size={18} className="flicker" /> : <MicOff color="rgba(255,255,255,0.45)" size={18} />}
                   </button>
-                  <button type="submit" disabled={!inputText.trim() || isTyping} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem' }}>
-                    <Send color={inputText.trim() ? "var(--marq-accent)" : "rgba(255,255,255,0.1)"} size={18} />
-                  </button>
+                  {isTyping ? (
+                    <button type="button" onClick={stopGeneration} aria-label="Stop generating" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem' }}>
+                      <Square color="var(--marq-warn)" size={16} />
+                    </button>
+                  ) : (
+                    <button type="submit" disabled={!inputText.trim()} aria-label="Send message" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem' }}>
+                      <Send color={inputText.trim() ? "var(--marq-accent)" : "rgba(255,255,255,0.25)"} size={18} />
+                    </button>
+                  )}
                 </form>
               </footer>
             </div>
@@ -266,8 +279,8 @@ function App() {
             </div>
 
             <div className="hud-panel" style={{ padding: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div className="hud-text" style={{ fontSize: '0.65rem', color: 'var(--marq-accent)' }}>Active_Core</div>
-              <div className="hud-text" style={{ fontSize: '0.75rem' }}>{systemStatus.model}</div>
+              <div className="hud-text" style={{ fontSize: '0.65rem', color: 'var(--marq-accent)' }}>MODEL</div>
+              <div className="hud-text model-value" title={systemStatus.model} style={{ fontSize: '0.75rem' }}>{shortModel(systemStatus.model)}</div>
             </div>
             
             <div className="hud-panel" style={{ padding: '1rem', display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
@@ -275,7 +288,9 @@ function App() {
                 <Activity color="var(--marq-accent)" size={18} />
               </div>
               <div className="hud-text" style={{ fontSize: '0.65rem' }}>
-                Signal: <span style={{ color: 'var(--marq-accent)' }}>{systemStatus.link === 'Stable' ? 'STABLE_UPLINK' : 'SYNC_INTERRUPT'}</span>
+                LINK: <span style={{ color: systemStatus.link === 'Stable' ? 'var(--marq-accent)' : 'var(--marq-warn)' }}>
+                  {systemStatus.link === 'Stable' ? 'STABLE' : 'DEGRADED'}
+                </span>
               </div>
             </div>
           </div>
@@ -296,7 +311,7 @@ function App() {
             }}
           >
             <div className="hud-text flicker" style={{ fontSize: '4rem', color: 'var(--marq-warn)', fontWeight: 800 }}>
-              SYSTEM REBOOT INITIATED
+              SESSION RESET
             </div>
           </motion.div>
         )}

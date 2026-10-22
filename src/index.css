@@ -81,6 +81,16 @@ body {
   font-size: 0.75rem;
 }
 
+/* Model ids are lowercase identifiers, not labels: never uppercase or wrap them. */
+.model-value {
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 190px;
+}
+
 .neon-btn {
   background: transparent;
   border: 1px solid var(--marq-accent);

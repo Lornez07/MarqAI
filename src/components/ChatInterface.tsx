@@ -9,9 +9,15 @@ import { type Message } from '../hooks/useMarqAI';
 interface ChatInterfaceProps {
   messages: Message[];
   isTyping: boolean;
+  onRetry?: (text: string) => void;
 }
 
-const CodeBlock = ({ children, className }: any) => {
+interface CodeBlockProps {
+  children?: React.ReactNode;
+  className?: string;
+}
+
+const CodeBlock = ({ children, className }: CodeBlockProps) => {
   const [copied, setCopied] = useState(false);
   const isInline = !className;
 
@@ -45,7 +51,7 @@ const CodeBlock = ({ children, className }: any) => {
   );
 };
 
-export const ChatInterface: React.FC<ChatInterfaceProps> = ({ messages, isTyping }) => {
+export const ChatInterface: React.FC<ChatInterfaceProps> = ({ messages, isTyping, onRetry }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -54,10 +60,20 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ messages, isTyping
     }
   }, [messages, isTyping]);
 
+  const findPromptFor = (index: number): string | undefined => {
+    for (let i = index - 1; i >= 0; i -= 1) {
+      if (messages[i].sender === 'user') return messages[i].text;
+    }
+    return undefined;
+  };
+
   return (
-    <div 
+    <div
       ref={scrollRef}
       className="custom-scroll"
+      role="log"
+      aria-live="polite"
+      aria-relevant="additions text"
       style={{
         flex: 1,
         overflowY: 'auto',
@@ -68,39 +84,64 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ messages, isTyping
       }}
     >
       <AnimatePresence initial={false}>
-        {messages.map((msg) => (
-          <motion.div
-            key={msg.id}
-            initial={{ opacity: 0, y: 10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            className={`chat-bubble ${msg.sender === 'ai' ? 'bubble-ai' : 'bubble-user'}`}
-          >
-            {msg.sender === 'ai' ? (
-              <ReactMarkdown 
-                rehypePlugins={[rehypeHighlight]}
-                components={{
-                  code: CodeBlock
-                }}
-              >
-                {msg.text}
-              </ReactMarkdown>
-            ) : (
-              msg.text
-            )}
-          </motion.div>
-        ))}
-        {isTyping && (
-          <motion.div
-            initial={{ opacity: 0, y: 5 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="chat-bubble bubble-ai"
-            style={{ width: '60px', display: 'flex', gap: '4px', justifyContent: 'center', alignItems: 'center' }}
-          >
-            <div className="typing-dot" style={{ animationDelay: '0s' }} />
-            <div className="typing-dot" style={{ animationDelay: '0.2s' }} />
-            <div className="typing-dot" style={{ animationDelay: '0.4s' }} />
-          </motion.div>
-        )}
+        {messages.map((msg, index) => {
+          const isError = msg.status === 'error';
+          const isCancelled = msg.status === 'cancelled';
+          const isWaiting = msg.sender === 'ai' && msg.status === 'streaming' && msg.text.length === 0;
+          const prompt = isError ? findPromptFor(index) : undefined;
+
+          return (
+            <motion.div
+              key={msg.id}
+              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              className={`chat-bubble ${msg.sender === 'ai' ? 'bubble-ai' : 'bubble-user'}`}
+              style={isError ? { borderColor: 'rgba(239, 68, 68, 0.55)' } : undefined}
+            >
+              {isError ? (
+                <div role="alert">
+                  <div className="hud-text" style={{ color: 'var(--marq-warn)', fontSize: '0.7rem', marginBottom: '0.4rem' }}>
+                    {msg.error?.code ?? 'ERROR'} · REQUEST FAILED
+                  </div>
+                  <div style={{ color: 'var(--marq-text)', marginBottom: isTyping ? 0 : '0.6rem' }}>
+                    {msg.error?.message ?? 'The request failed.'}
+                  </div>
+                  {msg.error?.retryable && prompt && onRetry && (
+                    <button className="neon-btn" onClick={() => onRetry(prompt)} aria-label="Retry the failed message">
+                      Retry
+                    </button>
+                  )}
+                </div>
+              ) : msg.sender === 'ai' ? (
+                <>
+                  {isWaiting ? (
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center', height: '18px' }} aria-label="Waiting for the first token">
+                      <div className="typing-dot" style={{ animationDelay: '0s' }} />
+                      <div className="typing-dot" style={{ animationDelay: '0.2s' }} />
+                      <div className="typing-dot" style={{ animationDelay: '0.4s' }} />
+                    </div>
+                  ) : (
+                    <ReactMarkdown
+                      rehypePlugins={[rehypeHighlight]}
+                      components={{
+                        code: CodeBlock
+                      }}
+                    >
+                      {msg.text}
+                    </ReactMarkdown>
+                  )}
+                  {isCancelled && (
+                    <div className="hud-text" style={{ color: 'var(--marq-text-soft)', fontSize: '0.65rem', marginTop: '0.5rem' }}>
+                      STOPPED
+                    </div>
+                  )}
+                </>
+              ) : (
+                msg.text
+              )}
+            </motion.div>
+          );
+        })}
       </AnimatePresence>
     </div>
   );

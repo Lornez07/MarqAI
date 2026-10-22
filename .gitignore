@@ -27,3 +27,11 @@ dist-ssr
 *.sw?
 
 scratch/
+
+.tmp/
+
+
+.vercel/
+
+.vercel
+.env*

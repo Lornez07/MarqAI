@@ -8,7 +8,16 @@ export function useHolographicAudio() {
   const startHum = () => {
     if (audioContextRef.current) return;
 
-    audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const AudioContextCtor =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+
+    if (!AudioContextCtor) {
+      console.warn('Holographic audio unavailable: no AudioContext support.');
+      return;
+    }
+
+    audioContextRef.current = new AudioContextCtor();
     
     // Create a low-frequency hum (55Hz - A1)
     const osc = audioContextRef.current.createOscillator();

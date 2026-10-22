@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { Clock, Cpu } from 'lucide-react';
 
 interface SystemDataProps {
@@ -23,6 +23,7 @@ function formatValue(value: number | null, suffix: string): string {
 
 export const SystemData: React.FC<SystemDataProps> = ({ status, isSearching = false }) => {
   const healthy = status.link === 'Stable';
+  const reduceMotion = useReducedMotion();
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', width: '100%' }}>
@@ -56,23 +57,36 @@ export const SystemData: React.FC<SystemDataProps> = ({ status, isSearching = fa
             {isSearching ? 'STREAMING' : 'IDLE'}
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '3px', height: '100%' }}>
-          {WAVE_PEAKS.map((peak, i) => (
-            <motion.div
-              key={i}
-              style={{ flex: 1, background: 'var(--marq-accent)', minHeight: '2px', borderRadius: '1px' }}
-              animate={{
-                height: isSearching ? [4, peak, 4] : [2, 2 + (peak % 7), 2],
-                opacity: isSearching ? [0.4, 1, 0.4] : [0.2, 0.35, 0.2],
-              }}
-              transition={{
-                repeat: Infinity,
-                duration: isSearching ? 0.36 : 1.0,
-                delay: WAVE_OFFSETS[i],
-                ease: 'easeInOut',
-              }}
-            />
-          ))}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '3px', height: '100%' }} aria-hidden="true">
+          {reduceMotion
+            ? WAVE_PEAKS.map((peak, i) => (
+                <div
+                  key={i}
+                  style={{
+                    flex: 1,
+                    background: 'var(--marq-accent)',
+                    height: `${2 + (peak % 7)}px`,
+                    opacity: 0.35,
+                    borderRadius: '1px',
+                  }}
+                />
+              ))
+            : WAVE_PEAKS.map((peak, i) => (
+                <motion.div
+                  key={i}
+                  style={{ flex: 1, background: 'var(--marq-accent)', minHeight: '2px', borderRadius: '1px' }}
+                  animate={{
+                    height: isSearching ? [4, peak, 4] : [2, 2 + (peak % 7), 2],
+                    opacity: isSearching ? [0.4, 1, 0.4] : [0.2, 0.35, 0.2],
+                  }}
+                  transition={{
+                    repeat: Infinity,
+                    duration: isSearching ? 0.36 : 1.0,
+                    delay: WAVE_OFFSETS[i],
+                    ease: 'easeInOut',
+                  }}
+                />
+              ))}
         </div>
       </div>
 

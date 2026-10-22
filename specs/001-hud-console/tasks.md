@@ -60,15 +60,17 @@ Tasks are ordered by dependency. One at a time; verify before the next.
 - **Remaining:** `src/lib/sessions.ts` with versioned `marq:v1:sessions`, session list in sidebar, 20-session cap, migration from `marq_history`
 - **Verification so far:** guarded parse shipped; reload keeps history; session switching not implemented
 
-## Task 9: Accessibility pass
+## Task 9: Accessibility pass `[x]`
 - **Inputs:** all components, `index.css`
 - **Outputs:** `aria-label` on mic/send/stop/clear/drawer, `aria-live="polite"` on the stream, visible `:focus-visible`, body copy off cyan, 12px floor with ≥70% opacity, `prefers-reduced-motion` block, status dot + word
 - **Verification:** axe → 0 critical/serious; keyboard-only tab pass reaches every control with a visible ring; reduced-motion run shows no infinite animation.
+- **Result:** axe-core 4.10.2 → 0 violations at 1440 and 375 (was 2 moderate landmark errors). Focus rings measured on voice/clear/reset/input (`solid 2px rgb(34,211,238)`). Under emulated `prefers-reduced-motion: reduce`: `.scanner-overlay`/`.data-stream-layer` animation `none`, 12 animated transforms unchanged over 1 s (`MotionConfig reducedMotion="user"`). Body copy moved to `--marq-text`; decorative layers now `aria-hidden`.
 
-## Task 10: Mobile layout, not amputation
+## Task 10: Mobile layout, not amputation `[x]`
 - **Inputs:** `App.tsx` (`mobile-hide`), `index.css` media queries, `HolographicFace.tsx` (750px fixed)
 - **Outputs:** telemetry drawer with labeled toggle, `clamp()` face sizing, compressed 375px header
 - **Verification:** Playwright 375×667: `.hud-panel` reachable via drawer, composer inside viewport (currently `bottom: 650/667`), `scrollWidth === clientWidth`, header ≤ 25% of viewport.
+- **Result:** 375×667 measured — header 114 px (17 %), composer bottom 650/667, `scrollWidth 375 === clientWidth 375`, face `min(750px, 100%, 78vh)`. `Telemetry` toggle (`aria-expanded`/`aria-controls`) opens a labelled drawer (`visibility/transform`), Escape and backdrop close it, axe 0 violations with drawer open. Root overflow cause was grid `min-width: auto`; fixed with `min-width: 0` on the grid + children.
 
 ## Task 11: Asset + motion budget `[!]`
 - **Inputs:** `src/assets/hologram_face_processed.png` (823 KB), `App.css`, `react.svg`, `vite.svg`, `hero.png`, `public/icons.svg`, `index.css`

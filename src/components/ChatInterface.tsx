@@ -39,9 +39,9 @@ const CodeBlock = ({ children, className }: CodeBlockProps) => {
           <Terminal size={12} />
           <span>{className?.replace('language-', '') || 'code'}</span>
         </div>
-        <button onClick={handleCopy} className="copy-btn">
-          {copied ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
-          <span>{copied ? 'Copied' : 'Copy'}</span>
+        <button onClick={handleCopy} className="copy-btn" aria-label={copied ? 'Code copied' : 'Copy code'}>
+          {copied ? <Check size={12} color="#10b981" aria-hidden="true" /> : <Copy size={12} aria-hidden="true" />}
+          <span aria-hidden="true">{copied ? 'Copied' : 'Copy'}</span>
         </button>
       </div>
       <pre>

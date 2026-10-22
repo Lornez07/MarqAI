@@ -45,7 +45,7 @@ export const HolographicFace: React.FC<Props> = ({ isThinking = false }) => {
   }, [mouseX, mouseY]);
 
   return (
-    <div style={{
+    <div aria-hidden="true" style={{
       position: 'absolute',
       top: '50%',
       left: '50%',
@@ -60,7 +60,7 @@ export const HolographicFace: React.FC<Props> = ({ isThinking = false }) => {
       overflow: 'hidden',
       perspective: '1200px', // Enhanced depth
     }}>
-      <div style={{ position: 'relative', width: '750px', height: '750px', transformStyle: 'preserve-3d' }}>
+      <div style={{ position: 'relative', width: 'min(750px, 100%, 78vh)', height: 'min(750px, 100%, 78vh)', transformStyle: 'preserve-3d' }}>
         
         {/* --- LAYER 3: BACKGROUND DEPTH / SHADOW --- */}
         <motion.div

@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 
 export const MarqHUD: React.FC = () => {
   return (
-    <div style={{
+    <div aria-hidden="true" style={{
       position: 'absolute',
       width: '300px',
       height: '300px',

@@ -4,7 +4,7 @@ import { User } from 'lucide-react';
 
 export const MarqAvatar: React.FC = () => {
   return (
-    <div style={{ position: 'relative', width: '60px', height: '60px' }}>
+      <div style={{ position: 'relative', width: '60px', height: '60px' }} aria-hidden="true">
       <motion.div
         className="avatar-pulse"
         animate={{

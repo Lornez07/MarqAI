@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Shield, Activity, Maximize2, Mic, MicOff, Square } from 'lucide-react';
+import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
+import { Send, Shield, Activity, Maximize2, Mic, MicOff, Square, Gauge } from 'lucide-react';
 import './index.css';
 import { useMarqAI } from './hooks/useMarqAI';
 import { useHolographicAudio } from './hooks/useHolographicAudio';
@@ -33,6 +33,7 @@ function App() {
   const [inputText, setInputText] = useState('');
   const [isInitializing, setIsInitializing] = useState(true);
   const [voiceMode, setVoiceMode] = useState(false);
+  const [telemetryOpen, setTelemetryOpen] = useState(false);
   const lastSpokenMessageIdRef = useRef<string | null>(null);
   const wasVoiceCommandRef = useRef(false);
 
@@ -80,6 +81,16 @@ function App() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Drawer dismissal: Escape must work without hunting for the close button.
+  useEffect(() => {
+    if (!telemetryOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setTelemetryOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [telemetryOpen]);
+
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim()) return;
@@ -101,8 +112,9 @@ function App() {
 
   if (isInitializing) {
     return (
-      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000' }}>
-        <motion.div
+      <MotionConfig reducedMotion="user">
+        <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000' }}>
+          <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           className="hud-text"
@@ -122,17 +134,19 @@ function App() {
             />
           </div>
         </motion.div>
-      </div>
+        </div>
+      </MotionConfig>
     );
   }
 
   return (
+    <MotionConfig reducedMotion="user">
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
-      <div className="scanner-overlay" />
-      <div className="data-stream-layer" />
+      <div className="scanner-overlay" aria-hidden="true" />
+      <div className="data-stream-layer" aria-hidden="true" />
       
       {/* Background HUD Layers */}
-      <div className="mobile-hide" style={{ position: 'absolute', top: '30%', left: '20%', transform: 'translate(-50%, -50%)' }}>
+      <div className="mobile-hide" aria-hidden="true" style={{ position: 'absolute', top: '30%', left: '20%', transform: 'translate(-50%, -50%)' }}>
         <MarqHUD />
       </div>
 
@@ -149,7 +163,8 @@ function App() {
         boxSizing: 'border-box',
         gap: '1rem',
         overflow: 'hidden'
-      }}>
+      }}
+      >
         
         {/* Header - Stays at top */}
         <header className="header-container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
@@ -160,7 +175,7 @@ function App() {
                 <h1 className="glitch-text title-text" style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '2px', color: 'var(--marq-accent)' }}>
                   MarqAI<span style={{ opacity: 0.5 }}>.Console</span>
                 </h1>
-                <div className="hud-text" style={{ color: 'var(--marq-accent)', opacity: 0.75, display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.7rem' }}>
+                <div className="hud-text header-subtitle" style={{ color: 'var(--marq-accent)', opacity: 0.75, display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.7rem' }}>
                   <Shield size={10} aria-hidden="true" /> KEYS HELD SERVER-SIDE
                 </div>
               </div>
@@ -180,6 +195,16 @@ function App() {
           </div>
 
           <div className="header-actions" style={{ display: 'flex', gap: '0.5rem' }}>
+            <button
+              type="button"
+              className="neon-btn telemetry-toggle"
+              aria-expanded={telemetryOpen}
+              aria-controls="telemetry-panel"
+              onClick={() => setTelemetryOpen(open => !open)}
+            >
+              <Gauge size={14} aria-hidden="true" />
+              <span>Telemetry</span>
+            </button>
             <button className="neon-btn" style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', flex: 1 }} onClick={clearChat}>Clear_History</button>
             <button 
               className={`neon-btn self-destruct-btn ${isSelfDestructing ? 'flicker' : ''}`}
@@ -192,7 +217,7 @@ function App() {
         </header>
 
         {/* Central HUD & Chat - Fills remaining space */}
-        <div className="main-layout-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: '1rem', minHeight: 0 }}>
+        <div className="main-layout-grid" role="main" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: '1rem', minHeight: 0 }}>
           
           {/* Fixed Chat Relay */}
           <div className="hud-panel" style={{ 
@@ -215,19 +240,22 @@ function App() {
               </div>
 
               {/* Input moved inside for fixed positioning */}
-              <footer style={{ padding: '0.75rem', borderTop: '1px solid var(--glass-border)', flexShrink: 0 }}>
+              {/* Composer: a form, not a document footer */}
+              <div role="form" aria-label="Message composer" style={{ padding: '0.75rem', borderTop: '1px solid var(--glass-border)', flexShrink: 0 }}>
                 <form onSubmit={handleSend} className="input-hud">
-                  <Maximize2 size={16} color="var(--marq-accent)" style={{ opacity: 0.5 }} />
+                  <Maximize2 size={16} color="var(--marq-accent)" aria-hidden="true" style={{ opacity: 0.5 }} />
                   <input
                     type="text"
                     className="jarvis-input"
+                    aria-label="Message"
+                    autoComplete="off"
                     placeholder={isListening ? "Listening..." : "What's on your mind?..."}
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
                     disabled={isSelfDestructing || isSpeaking}
                     autoFocus
                   />
-                  <Activity size={16} color="var(--marq-accent)" className={isListening ? "flicker" : ""} style={{ opacity: isListening ? 1 : 0.3 }} />
+                  <Activity size={16} color="var(--marq-accent)" className={isListening ? "flicker" : ""} aria-hidden="true" style={{ opacity: isListening ? 1 : 0.3 }} />
                   <div style={{ width: '1px', height: '20px', background: 'var(--marq-accent)', opacity: 0.3 }} />
                   <button type="button" onClick={toggleVoiceMode} aria-label={voiceMode ? 'Stop voice input' : 'Start voice input'} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem' }}>
                     {voiceMode ? <Mic color="var(--marq-accent)" size={18} className="flicker" /> : <MicOff color="rgba(255,255,255,0.45)" size={18} />}
@@ -242,12 +270,27 @@ function App() {
                     </button>
                   )}
                 </form>
-              </footer>
+              </div>
             </div>
           </div>
 
-          {/* Right Sidebar - Also constrained */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto', paddingRight: '0.25rem' }} className="mobile-hide custom-scroll">
+          {/* Right Sidebar: sidebar on desktop, bottom drawer on mobile */}
+          <aside
+            id="telemetry-panel"
+            aria-label="Telemetry"
+            className={`telemetry-sidebar custom-scroll ${telemetryOpen ? 'is-open' : ''}`}
+          >
+            <div className="telemetry-drawer-head">
+              <span className="hud-text">TELEMETRY</span>
+              <button
+                type="button"
+                className="neon-btn telemetry-close"
+                onClick={() => setTelemetryOpen(false)}
+                aria-label="Close telemetry"
+              >
+                Close
+              </button>
+            </div>
             <SystemData status={systemStatus} isSearching={isSearching} />
             
             <div className="hud-panel" style={{ padding: '1rem', minHeight: '150px' }}>
@@ -263,7 +306,7 @@ function App() {
                   </motion.span>
                 )}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: '4px', opacity: isSearching ? 1 : 0.2 }}>
+              <div aria-hidden="true" style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: '4px', opacity: isSearching ? 1 : 0.2 }}>
                 {[...Array(24)].map((_, i) => (
                   <motion.div
                     key={i}
@@ -277,25 +320,13 @@ function App() {
                 ))}
               </div>
             </div>
-
-            <div className="hud-panel" style={{ padding: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div className="hud-text" style={{ fontSize: '0.65rem', color: 'var(--marq-accent)' }}>MODEL</div>
-              <div className="hud-text model-value" title={systemStatus.model} style={{ fontSize: '0.75rem' }}>{shortModel(systemStatus.model)}</div>
-            </div>
-            
-            <div className="hud-panel" style={{ padding: '1rem', display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-              <div className={isSearching ? "flicker" : ""}>
-                <Activity color="var(--marq-accent)" size={18} />
-              </div>
-              <div className="hud-text" style={{ fontSize: '0.65rem' }}>
-                LINK: <span style={{ color: systemStatus.link === 'Stable' ? 'var(--marq-accent)' : 'var(--marq-warn)' }}>
-                  {systemStatus.link === 'Stable' ? 'STABLE' : 'DEGRADED'}
-                </span>
-              </div>
-            </div>
-          </div>
+          </aside>
         </div>
       </div>
+
+      {telemetryOpen && (
+        <div className="telemetry-backdrop" aria-hidden="true" onClick={() => setTelemetryOpen(false)} />
+      )}
 
       <AnimatePresence>
         {isSelfDestructing && (
@@ -317,6 +348,7 @@ function App() {
         )}
       </AnimatePresence>
     </div>
+    </MotionConfig>
   );
 }
 

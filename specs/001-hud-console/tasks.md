@@ -83,3 +83,13 @@ Tasks are ordered by dependency. One at a time; verify before the next.
 - **Outputs:** Vitest + Testing Library config and the four test files from Task 5/8; workflow: install → typecheck → lint → test → build → secret grep
 - **Result:** `vitest.config.ts` (jsdom, `src/**` + `api/**`), `src/lib/llm/client.test.ts` (SSE split frames, error frame + cooldown, HTTP→`ChatError` mapping, abort), `api/chat.test.ts` (Gemini 503 → OpenRouter stream failover, 503 `NOT_CONFIGURED`, invalid body, all-providers-fail 429 + `Retry-After`, GET config), `src/lib/sessions.test.ts` (boot, restore, corrupt JSON, unknown version, legacy migration, 20-cap, titles), `src/hooks/useMarqAI.test.tsx` (storage boot, fresh state, unconfigured probe). **23 tests / 4 files pass.** `npm run verify` = typecheck → lint → test → build → secrets. Workflow `.github/workflows/ci.yml` runs the same chain.
 - **Verification:** `npm run verify` exit 0. Reintroducing `VITE_GEMINI_API_KEY` in `src/lib` → `Secret check failed: src\lib\__secret_probe.ts: VITE_-prefixed secret`, exit 1; removing it → exit 0. Workflow run itself is **not yet green on GitHub** — nothing is pushed; pushing needs your go-ahead.
+
+---
+
+## Production record (2026-10-23)
+
+- Deployment `marq-klyjln4n5` → `https://marq-ai.vercel.app`, status Ready.
+- `GET /api/chat` → `{"configured":true,"providers":{"gemini":true,"openrouter":true}}`.
+- `GET /hologram_face.webp` → `200 image/webp`, 144,492 bytes; HTML contains the image preload and no `fonts.googleapis` request.
+- Live bundle `/assets/index-liwxskbc.js`: **0** matches for `VITE_*KEY`, `AIza…`, `sk-or-v1-…`.
+- Browser smoke: streamed replies rendered; 1 session restored from `localStorage`; a later request hit the OpenRouter free-tier daily limit and rendered `RATE_LIMITED` with the cooldown hint — real limit, not a deploy fault.

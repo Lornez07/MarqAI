@@ -90,8 +90,9 @@ No third family. No Inter. Uppercase never exceeds 24 characters on mobile (it w
 
 | Range | Behavior |
 |---|---|
-| ≥ 901 | Chat `1fr` + sidebar `320px`; face `min(750px, 100%, 78vh)`; shell max 1920px centered (fluid to the edges below that) |
-| ≤ 900 | Sidebar collapses to a drawer; header stacks; face stays capped by panel height; chat full width |
+| ≥ 1440 | Chat `1fr` + sidebar `320px`; face `min(750px, 100%, 78vh)`; shell max 1600px centered |
+| 901–1439 | Same structure, sidebar `320px`; face still height-driven so it fills the panel |
+| ≤ 900 | Sidebar collapses to a drawer; header stacks; chat full width; face capped by panel height |
 | ≤ 480 | Single column; header compresses to wordmark + status + drawer toggle; composer pinned; face behind chat at reduced opacity |
 | 375 | No horizontal overflow. Composer visible without scroll. 44×44px minimum targets |
 

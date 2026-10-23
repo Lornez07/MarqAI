@@ -184,7 +184,7 @@ function App() {
         gridTemplateRows: 'auto 1fr',
         padding: '1rem', 
         zIndex: 10, 
-        maxWidth: '1920px', 
+        maxWidth: '1600px', 
         margin: '0 auto', 
         width: '100%',
         boxSizing: 'border-box',

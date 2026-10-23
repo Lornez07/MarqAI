@@ -14,7 +14,12 @@
  * Exactly one terminal `done` or `error` event is sent.
  */
 
-const GEMINI_MODEL = 'gemini-flash-latest';
+/**
+ * Gemini model order. The `-latest` aliases can point at a saturated model,
+ * so explicit ids let the next one take over on a 503. Verified against the
+ * free tier: 3.5-flash and 2.5-flash both answer; 2.0.x is retired.
+ */
+const GEMINI_MODELS = ['gemini-3.5-flash', 'gemini-2.5-flash'];
 
 /** Ordered fallbacks. Free-tier catalogs rotate; keep this list short and current. */
 const OPENROUTER_MODELS = [
@@ -220,14 +225,14 @@ async function upstreamError(provider: string, response: Response): Promise<Prov
   // Server-side only. Never forwarded to the client.
   console.error(`[chat] ${provider} ${status}: ${detail}`);
 
-  const code =
-    status === 429
+  const badKey = status === 401 || status === 403 || (status === 400 && /API_KEY_INVALID|API key not valid/i.test(detail));
+  const code = badKey
+    ? 'AUTH_INVALID'
+    : status === 429
       ? 'RATE_LIMITED'
-      : status === 401 || status === 403
-        ? 'AUTH_INVALID'
-        : status >= 500
-          ? 'UPSTREAM_ERROR'
-          : 'UPSTREAM_REJECTED';
+      : status >= 500
+        ? 'UPSTREAM_ERROR'
+        : 'UPSTREAM_REJECTED';
 
   const retryable = code === 'RATE_LIMITED' || code === 'UPSTREAM_ERROR';
   const retryAfterMs = parseRetryAfter(response.headers.get('retry-after'));
@@ -265,12 +270,13 @@ async function startAttempt(url: string, init: RequestInit, budget: AbortSignal)
 
 async function runGemini(
   key: string,
+  model: string,
   messages: ChatMessage[],
   budget: AbortSignal,
   onMeta: () => void,
   onDelta: (text: string) => void,
 ): Promise<Usage> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse&key=${encodeURIComponent(key)}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${encodeURIComponent(key)}`;
 
   const { response, release } = await startAttempt(
     url,
@@ -437,7 +443,7 @@ export default async function handler(req: ProxyRequest, res: ProxyResponse): Pr
   const startedAt = Date.now();
   let firstTokenAt: number | undefined;
   let emitted = 0;
-  let current: { model: string; provider: Provider } = { model: GEMINI_MODEL, provider: 'gemini' };
+  let current: { model: string; provider: Provider } = { model: GEMINI_MODELS[0], provider: 'gemini' };
 
   const onDelta = (text: string) => {
     if (!firstTokenAt) firstTokenAt = Date.now();
@@ -448,15 +454,17 @@ export default async function handler(req: ProxyRequest, res: ProxyResponse): Pr
   const attempts: Array<{ provider: Provider; model: string; run: () => Promise<Usage> }> = [];
 
   if (geminiKey) {
-    attempts.push({
-      provider: 'gemini',
-      model: GEMINI_MODEL,
-      run: () =>
-        runGemini(geminiKey, messages, budget.signal, () => {
-          current = { model: GEMINI_MODEL, provider: 'gemini' };
-          send(res, 'meta', current);
-        }, onDelta),
-    });
+    for (const model of GEMINI_MODELS) {
+      attempts.push({
+        provider: 'gemini',
+        model,
+        run: () =>
+          runGemini(geminiKey, model, messages, budget.signal, () => {
+            current = { model, provider: 'gemini' };
+            send(res, 'meta', current);
+          }, onDelta),
+      });
+    }
   }
 
   if (openRouterKey) {
@@ -474,10 +482,12 @@ export default async function handler(req: ProxyRequest, res: ProxyResponse): Pr
   }
 
   let lastError: ProviderError | undefined;
+  const deadProviders = new Set<Provider>();
 
   try {
     for (const attempt of attempts) {
       if (budget.signal.aborted) break;
+      if (deadProviders.has(attempt.provider)) continue;
 
       try {
         const usage = await attempt.run();
@@ -503,9 +513,12 @@ export default async function handler(req: ProxyRequest, res: ProxyResponse): Pr
         // two answers stitched together.
         if (emitted > 0 || normalized.code === 'ABORTED') break;
 
-        // Auth problems are per-provider: fall through to the next provider,
-        // but do not burn the remaining models on the same bad key.
-        if (normalized.code === 'AUTH_INVALID') break;
+        // Auth problems are per-provider: skip that provider's remaining
+        // models but still fall through to the other provider.
+        if (normalized.code === 'AUTH_INVALID') {
+          deadProviders.add(attempt.provider);
+          continue;
+        }
       }
     }
 

@@ -108,6 +108,58 @@ describe('POST /api/chat', () => {
     expect(String(fetchMock.mock.calls[0][0])).toContain('generativelanguage.googleapis.com');
   });
 
+  it('tries the next Gemini model when the first is saturated', async () => {
+    const geminiUrls: string[] = [];
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes('generativelanguage.googleapis.com')) {
+        geminiUrls.push(url);
+        if (url.includes('gemini-3.5-flash:')) return new Response('high demand', { status: 503 });
+        return sseStream([
+          `data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] })}\n\n`,
+        ]);
+      }
+      return sseStream(['data: [DONE]\n\n']);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = makeResponse();
+    await handler(makeRequest('POST', validBody), res);
+
+    expect(geminiUrls).toHaveLength(2);
+    expect(geminiUrls[0]).toContain('gemini-3.5-flash');
+    expect(geminiUrls[1]).toContain('gemini-2.5-flash');
+    expect(res.body).toContain('"model":"gemini-2.5-flash"');
+    expect(res.body).toContain('"provider":"gemini"');
+  });
+
+  it('skips the rest of a provider after a bad key but still fails over', async () => {
+    const calls: string[] = [];
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      calls.push(url);
+      if (url.includes('generativelanguage.googleapis.com')) {
+        return new Response(
+          JSON.stringify({ error: { code: 400, message: 'API key not valid.', status: 'INVALID_ARGUMENT' } }),
+          { status: 400 },
+        );
+      }
+      return sseStream([
+        'data: {"choices":[{"delta":{"content":"ok"}}]}\n\n',
+        'data: [DONE]\n\n',
+      ]);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = makeResponse();
+    await handler(makeRequest('POST', validBody), res);
+
+    const geminiCalls = calls.filter((u) => u.includes('generativelanguage.googleapis.com'));
+    expect(geminiCalls).toHaveLength(1);
+    expect(res.body).toContain('"provider":"openrouter"');
+    expect(res.body).toContain('"text":"ok"');
+  });
+
   it('returns 503 NOT_CONFIGURED when no keys are present', async () => {
     delete process.env.GEMINI_API_KEY;
     delete process.env.OPENROUTER_API_KEY;

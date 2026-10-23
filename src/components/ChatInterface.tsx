@@ -161,7 +161,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ messages, isTyping
                     <ReactMarkdown
                       rehypePlugins={[rehypeHighlight]}
                       components={{
-                        code: CodeBlock
+                        code: CodeBlock,
+                        // ReactMarkdown wraps block code in its own <pre>; our
+                        // container already renders one. Unwrap to keep valid
+                        // markup and a single horizontal scroll container.
+                        pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
                       }}
                     >
                       {msg.text}

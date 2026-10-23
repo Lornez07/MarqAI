@@ -62,6 +62,9 @@ body {
 
 .chat-bubble {
   max-width: 85%;
+  /* Flex/grid items default to min-width:auto, which lets a long token push the
+     bubble wider than its track. */
+  min-width: 0;
   padding: 1rem 1.5rem;
   font-size: 1rem;
   line-height: 1.6;
@@ -71,6 +74,22 @@ body {
   backdrop-filter: blur(16px);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
   font-weight: 450;
+}
+
+/* URLs, hashes, and ids have no break opportunity; the bubble's clip-path
+   would otherwise cut them off mid-glyph. */
+.chat-bubble :where(p, li, dt, dd, blockquote, td, th, h1, h2, h3, h4, h5, h6) {
+  overflow-wrap: anywhere;
+}
+
+/* Code keeps its own scroll axis: wrap nothing, scroll the block. */
+.chat-bubble :where(pre) {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.inline-code {
+  overflow-wrap: anywhere;
 }
 
 .bubble-ai {
@@ -273,7 +292,16 @@ body {
   padding: 1.25rem !important;
   background: transparent !important;
   border: none !important;
+  max-width: 100%;
   overflow-x: auto;
+}
+
+/* highlight.js makes `pre code` its own scroll container. Keep the scrollbar on
+   the <pre> so long lines have one axis, not two nested ones. */
+.code-block-container pre code {
+  display: block;
+  min-width: max-content;
+  overflow: visible !important;
 }
 
 .code-block-container code {

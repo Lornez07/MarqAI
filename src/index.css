@@ -61,7 +61,8 @@ body {
 }
 
 .chat-bubble {
-  max-width: 85%;
+  /* Long lines are unreadable on a wide monitor; cap the measure, not the panel. */
+  max-width: min(85%, 760px);
   padding: 1rem 1.5rem;
   font-size: 1rem;
   line-height: 1.6;

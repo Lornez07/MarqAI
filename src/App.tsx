@@ -184,7 +184,7 @@ function App() {
         gridTemplateRows: 'auto 1fr',
         padding: '1rem', 
         zIndex: 10, 
-        maxWidth: '1600px', 
+        maxWidth: '1920px', 
         margin: '0 auto', 
         width: '100%',
         boxSizing: 'border-box',
@@ -289,7 +289,7 @@ function App() {
                     }
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
-                    disabled={isSelfDestructing || isSpeaking || providerState !== 'ready'}
+                    disabled={isSelfDestructing || isSpeaking || providerState === 'unconfigured'}
                     autoFocus
                   />
                   <Activity size={16} color="var(--marq-accent)" className={isListening ? "flicker" : ""} aria-hidden="true" style={{ opacity: isListening ? 1 : 0.3 }} />
@@ -302,7 +302,7 @@ function App() {
                       <Square color="var(--marq-warn)" size={16} />
                     </button>
                   ) : (
-                    <button type="submit" disabled={!inputText.trim() || providerState !== 'ready'} aria-label="Send message" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem' }}>
+                    <button type="submit" disabled={!inputText.trim() || providerState === 'unconfigured'} aria-label="Send message" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem' }}>
                       <Send color={inputText.trim() ? "var(--marq-accent)" : "rgba(255,255,255,0.25)"} size={18} />
                     </button>
                   )}

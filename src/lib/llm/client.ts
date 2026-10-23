@@ -90,7 +90,13 @@ export async function streamChat(
  */
 export async function fetchProviderConfig(signal?: AbortSignal): Promise<ProviderConfig | null> {
   try {
-    const response = await fetch('/api/chat', { method: 'GET', signal, headers: { Accept: 'application/json' } });
+    const timeout = AbortSignal.timeout(4000);
+    const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
+    const response = await fetch('/api/chat', {
+      method: 'GET',
+      signal: combined,
+      headers: { Accept: 'application/json' },
+    });
     if (!response.ok) return null;
     const body = (await response.json()) as Partial<ProviderConfig>;
     if (typeof body.configured !== 'boolean' || !body.providers) return null;
